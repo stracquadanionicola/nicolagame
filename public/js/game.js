@@ -10,6 +10,8 @@ class GameClient {
         this.timer = null;
         this.countdownTimer = null; // Separate timer for countdown
         this.adminEditor = null;
+        this.isAutoSubmitting = false; // Track auto-submission state
+        this.connectionAttempts = 0; // Track connection attempts
         
         // Cache DOM elements
         this.cachedElements = {};
@@ -95,6 +97,15 @@ class GameClient {
         
         this.socket.on('connect', () => {
             console.log('Connected to server');
+            this.connectionAttempts = 0; // Reset connection attempts on successful connect
+            
+            // Hide any connection error notifications
+            const existingErrors = document.querySelectorAll('.notification.error');
+            existingErrors.forEach(error => {
+                if (error.textContent.includes('connessione')) {
+                    error.remove();
+                }
+            });
         });
         
         this.socket.on('disconnect', () => {
@@ -104,7 +115,18 @@ class GameClient {
         
         this.socket.on('connect_error', (error) => {
             console.error('Connection error:', error);
-            this.showNotification('Errore di connessione al server', 'error');
+            this.connectionAttempts++;
+            
+            // Only show error after multiple failed attempts to avoid false alarms
+            if (this.connectionAttempts > 2) {
+                this.showNotification('Problema di connessione al server. Tentativo di riconnessione...', 'error');
+            }
+        });
+        
+        this.socket.on('reconnect', () => {
+            console.log('Reconnected to server');
+            this.connectionAttempts = 0;
+            this.showNotification('Connessione ripristinata!', 'success');
         });
         
         this.socket.on('error', (error) => {
@@ -282,9 +304,9 @@ class GameClient {
         
         // Check if at least one answer is provided (only for manual submission)
         const hasAnswers = Object.values(answers).some(answer => answer.length > 0);
-        const isAutoSubmit = submitBtn.textContent === 'TEMPO SCADUTO!';
         
-        if (!hasAnswers && !isAutoSubmit) {
+        // Don't require answers for auto-submission (time expired)
+        if (!hasAnswers && !this.isAutoSubmitting) {
             this.showNotification('Inserisci almeno una risposta!', 'error');
             return;
         }
@@ -304,12 +326,13 @@ class GameClient {
         this.socket.emit('submit-answers', answers);
         
         submitBtn.disabled = true;
-        if (!isAutoSubmit) {
+        if (!this.isAutoSubmitting) {
             submitBtn.textContent = 'INVIATE!';
             this.showNotification('Risposte inviate!', 'success');
         } else {
             submitBtn.textContent = 'INVIATE! (TEMPO SCADUTO)';
             this.showNotification('Tempo scaduto! Risposte inviate automaticamente.', 'warning');
+            this.isAutoSubmitting = false; // Reset flag
         }
         
         // Disable all input fields
@@ -354,6 +377,9 @@ class GameClient {
 
     startGameRound(data) {
         this.switchScreen('game');
+        
+        // Reset auto-submit state for new round
+        this.isAutoSubmitting = false;
         
         // Update round info
         document.getElementById('current-round').textContent = data.round;
@@ -446,14 +472,15 @@ class GameClient {
                 if (!submitBtn.disabled && this.currentScreen === 'game') {
                     console.log('Time expired, auto-submitting current answers');
                     
-                    // Mark button to indicate auto-submission
+                    // Mark as auto-submitting
+                    this.isAutoSubmitting = true;
+                    
+                    // Visual feedback
                     submitBtn.textContent = 'TEMPO SCADUTO!';
                     submitBtn.style.backgroundColor = '#ff6600';
                     
-                    // Submit after a brief delay to show the message
-                    setTimeout(() => {
-                        this.submitAnswers();
-                    }, 500);
+                    // Submit immediately - don't wait, user's answers matter
+                    this.submitAnswers();
                 } else {
                     console.log('Time expired but already submitted or not in game screen');
                 }
