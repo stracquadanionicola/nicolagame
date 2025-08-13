@@ -133,7 +133,8 @@ io.on('connection', (socket) => {
             id: playerId,
             name: playerName,
             answers: {},
-            ready: false
+            ready: false,
+            submitted: false // Initialize submitted status
         };
         gameState.scores[socket.id] = 0;
         
@@ -165,18 +166,20 @@ io.on('connection', (socket) => {
                 players: Object.values(gameState.players)
             });
             
-            // Check if all players are ready and we have at least 2 players (back to 2)
-            const allReady = Object.values(gameState.players).every(player => player.ready);
-            const playerCount = Object.keys(gameState.players).length;
+            // Check if all players are ready and we have at least 2 players
+            const connectedPlayers = Object.values(gameState.players);
+            const readyPlayers = connectedPlayers.filter(player => player.ready);
+            const allReady = connectedPlayers.length > 0 && connectedPlayers.every(player => player.ready);
+            const playerCount = connectedPlayers.length;
             
-            console.log(`Ready status: ${allReady}, Player count: ${playerCount}`);
+            console.log(`Ready status: ${allReady}, Ready players: ${readyPlayers.length}/${playerCount}`);
             
             io.emit('players-ready-status', {
-                readyPlayers: Object.values(gameState.players).filter(p => p.ready).length,
+                readyPlayers: readyPlayers.length,
                 totalPlayers: playerCount
             });
             
-            // Game starts only with 2+ players
+            // Game starts only with 2+ players AND all must be ready
             if (allReady && playerCount >= 2 && !gameState.gameStarted) {
                 console.log('Starting game - all players ready!');
                 gameState.gameStarted = true;
@@ -198,10 +201,15 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            // Check if all players are ready
-            const allReady = Object.values(gameState.players).every(player => player.ready);
+            // Check if all players are ready for next round
+            const connectedPlayers = Object.values(gameState.players);
+            const readyPlayers = connectedPlayers.filter(player => player.ready);
+            const allReady = connectedPlayers.length > 0 && connectedPlayers.every(player => player.ready);
+            const playerCount = connectedPlayers.length;
             
-            if (allReady && Object.keys(gameState.players).length >= 2) {
+            console.log(`Next round ready check: ${readyPlayers.length}/${playerCount} ready, all ready: ${allReady}`);
+            
+            if (allReady && playerCount >= 2) {
                 console.log('All players ready, starting new round');
                 startNewRound();
             }
@@ -216,17 +224,23 @@ io.on('connection', (socket) => {
     // Player submits answers
     socket.on('submit-answers', (answers) => {
         if (gameState.players[socket.id] && gameState.gameStarted) {
+            // Prevent double submission
+            if (gameState.players[socket.id].submitted) {
+                console.log(`Player ${gameState.players[socket.id].name} tried to submit answers twice, ignoring`);
+                return;
+            }
+            
             gameState.players[socket.id].answers = answers;
             gameState.players[socket.id].submitted = true;
             
             console.log(`Player ${gameState.players[socket.id].name} submitted answers:`, answers);
             
-            // Check if all players have submitted
-            const allSubmitted = Object.values(gameState.players).every(player => 
-                player.submitted === true
-            );
+            // Check if all connected players have submitted
+            const connectedPlayers = Object.values(gameState.players);
+            const submittedPlayers = connectedPlayers.filter(player => player.submitted === true);
+            const allSubmitted = connectedPlayers.length > 0 && connectedPlayers.every(player => player.submitted === true);
             
-            console.log(`All submitted: ${allSubmitted}, Players:`, Object.values(gameState.players).map(p => ({name: p.name, submitted: p.submitted})));
+            console.log(`Submission status: ${submittedPlayers.length}/${connectedPlayers.length} submitted, all submitted: ${allSubmitted}`);
             
             if (allSubmitted) {
                 console.log('All players submitted, ending round');
@@ -277,8 +291,37 @@ io.on('connection', (socket) => {
     // Player disconnects
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
+        
+        if (gameState.players[socket.id]) {
+            console.log(`Player ${gameState.players[socket.id].name} disconnected`);
+        }
+        
         delete gameState.players[socket.id];
         delete gameState.scores[socket.id];
+        
+        // Check if game should continue or reset
+        const remainingPlayers = Object.keys(gameState.players).length;
+        
+        if (remainingPlayers === 0) {
+            console.log('No players remaining, resetting game state');
+            // Reset game state when no players left
+            gameState = {
+                players: {},
+                currentRound: 0,
+                maxRounds: 10,
+                maxPlayers: 10,
+                gameStarted: false,
+                currentLetter: '',
+                roundStartTime: null,
+                roundDuration: 120000,
+                scores: {},
+                roundTimer: null,
+                usedLetters: []
+            };
+        } else if (remainingPlayers === 1 && gameState.gameStarted) {
+            console.log('Only one player remaining, ending game');
+            endGame();
+        }
         
         io.emit('player-left', {
             players: Object.values(gameState.players)
@@ -302,7 +345,7 @@ function startNewRound() {
     Object.values(gameState.players).forEach(player => {
         player.ready = false;
         player.answers = {};
-        player.submitted = false;
+        player.submitted = false; // Explicitly set to false for all players
     });
     
     console.log(`Starting round ${gameState.currentRound} with letter ${gameState.currentLetter}`);
@@ -326,8 +369,8 @@ function startNewRound() {
 
 function endRound() {
     // Prevent multiple calls to endRound
-    if (!gameState.gameStarted) {
-        console.log('Round already ended, ignoring');
+    if (!gameState.gameStarted || gameState.currentRound === 0) {
+        console.log('Round already ended or not started, ignoring endRound call');
         return;
     }
     

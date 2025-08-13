@@ -172,13 +172,22 @@ class GameClient {
             return;
         }
         
+        const readyBtn = document.getElementById('ready-btn');
+        
+        // Prevent multiple ready clicks
+        if (readyBtn && readyBtn.disabled) {
+            console.log('Ready button already disabled, preventing double ready');
+            return;
+        }
+        
         console.log('Emitting set-ready event');
         this.socket.emit('set-ready');
         
-        const readyBtn = document.getElementById('ready-btn');
         if (readyBtn) {
             readyBtn.disabled = true;
             readyBtn.textContent = 'PRONTO!';
+            readyBtn.style.opacity = '0.6';
+            readyBtn.style.cursor = 'not-allowed';
             console.log('Ready button disabled');
         }
     }
@@ -213,6 +222,7 @@ class GameClient {
         // Check if already submitted
         const submitBtn = document.getElementById('submit-btn');
         if (submitBtn.disabled) {
+            console.log('Submit button already disabled, preventing double submission');
             return;
         }
         
