@@ -39,12 +39,11 @@ let gameState = {
     currentLetter: '',
     roundStartTime: null,
     roundDuration: 120000, // 2 minutes per round
-    scores: {},
-    roundTimer: null,
-    usedLetters: [] // Track used letters
-};
-
-// Categories for the game
+        scores: {},
+        roundTimer: null,
+        usedLetters: [], // Track used letters
+        roundScores: {} // Initialize round scores tracking
+    };// Categories for the game
 const categories = ['Nome', 'Cognome', 'Città', 'Animale', 'Cosa', 'Mestiere', 'Personaggi Televisivi'];
 
 // Generate random letter (excluding difficult ones and already used letters)
@@ -316,7 +315,8 @@ io.on('connection', (socket) => {
                 roundDuration: 120000,
                 scores: {},
                 roundTimer: null,
-                usedLetters: []
+                usedLetters: [],
+                roundScores: {} // Initialize round scores tracking
             };
         } else if (remainingPlayers === 1 && gameState.gameStarted) {
             console.log('Only one player remaining, ending game');
@@ -414,6 +414,7 @@ function endRound() {
     });
     
     // Send round results
+    gameState.roundScores = roundScores; // Store round scores for admin access
     io.emit('round-ended', {
         answers: allAnswers,
         roundScores: roundScores,
@@ -445,18 +446,31 @@ function endGame() {
         }
     });
     
-    // Create winners array with player info
-    const winnerPlayers = winners.map(socketId => gameState.players[socketId]);
+    // Create winners array with player info - safely handle disconnected players
+    const winnerPlayers = winners.map(socketId => gameState.players[socketId]).filter(player => player !== undefined);
     
-    console.log(`Game ended. Winners: ${winnerPlayers.map(p => p.name).join(', ')} with ${maxScore} points`);
-    
-    io.emit('game-ended', {
-        winners: winnerPlayers,
-        maxScore: maxScore,
-        finalScores: gameState.scores,
-        players: gameState.players,
-        isTie: winners.length > 1
-    });
+    // Fallback if no valid winners (all disconnected)
+    if (winnerPlayers.length === 0) {
+        console.log('No valid winners found, all players disconnected');
+        io.emit('game-ended', {
+            winners: [],
+            maxScore: 0,
+            finalScores: gameState.scores,
+            players: gameState.players,
+            isTie: false,
+            message: 'Gioco terminato - tutti i giocatori si sono disconnessi'
+        });
+    } else {
+        console.log(`Game ended. Winners: ${winnerPlayers.map(p => p.name).join(', ')} with ${maxScore} points`);
+        
+        io.emit('game-ended', {
+            winners: winnerPlayers,
+            maxScore: maxScore,
+            finalScores: gameState.scores,
+            players: gameState.players,
+            isTie: winners.length > 1
+        });
+    }
     
     // Reset game state
     gameState = {

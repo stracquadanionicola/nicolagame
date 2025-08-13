@@ -8,7 +8,11 @@ class GameClient {
         this.playerName = '';
         this.gameState = {};
         this.timer = null;
+        this.countdownTimer = null; // Separate timer for countdown
         this.adminEditor = null;
+        
+        // Cache DOM elements
+        this.cachedElements = {};
         
         this.init();
     }
@@ -95,6 +99,17 @@ class GameClient {
         
         this.socket.on('disconnect', () => {
             console.log('Disconnected from server');
+            this.cleanupTimers(); // Clean up all timers on disconnect
+        });
+        
+        this.socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            this.showNotification('Errore di connessione al server', 'error');
+        });
+        
+        this.socket.on('error', (error) => {
+            console.error('Socket error:', error);
+            this.showNotification('Errore di comunicazione', 'error');
         });
         
         this.socket.on('game-state', (state) => {
@@ -218,6 +233,29 @@ class GameClient {
         this.showNotification('Pronto per il prossimo round!', 'success');
     }
 
+    cleanupTimers() {
+        // Clean up all timers to prevent memory leaks
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+        }
+        
+        if (this.countdownTimer) {
+            clearInterval(this.countdownTimer);
+            this.countdownTimer = null;
+        }
+        
+        console.log('All timers cleaned up');
+    }
+
+    // Utility method to safely get cached DOM elements
+    getElement(id) {
+        if (!this.cachedElements[id]) {
+            this.cachedElements[id] = document.getElementById(id);
+        }
+        return this.cachedElements[id];
+    }
+
     submitAnswers() {
         // Check if already submitted
         const submitBtn = document.getElementById('submit-btn');
@@ -300,9 +338,12 @@ class GameClient {
             
             if (countdown < 0) {
                 clearInterval(countdownInterval);
+                this.countdownTimer = null; // Clear reference
                 this.startGameRound(data);
             }
         }, 1000);
+        
+        this.countdownTimer = countdownInterval; // Store reference for cleanup
     }
 
     startGameRound(data) {
@@ -458,6 +499,12 @@ class GameClient {
         if (this.timer) {
             clearInterval(this.timer);
             this.timer = null;
+        }
+        
+        // Clear countdown timer if exists
+        if (this.countdownTimer) {
+            clearInterval(this.countdownTimer);
+            this.countdownTimer = null;
         }
     }
 
