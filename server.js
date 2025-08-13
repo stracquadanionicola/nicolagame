@@ -239,17 +239,22 @@ io.on('connection', (socket) => {
     socket.on('admin-score-update', (changes) => {
         console.log('Admin score update received:', changes);
         
-        // Apply score changes
-        Object.keys(changes).forEach(playerName => {
-            const change = changes[playerName];
-            const playerId = findPlayerIdByName(playerName);
+        // Apply score changes - changes object has playerId as key
+        Object.keys(changes).forEach(playerId => {
+            const change = changes[playerId];
             
-            if (playerId && gameState.scores[playerId]) {
-                const oldTotal = gameState.scores[playerId];
+            // Verify the player exists
+            if (gameState.players[playerId]) {
+                const playerName = gameState.players[playerId].name;
+                const oldTotal = gameState.scores[playerId] || 0;
+                
+                // Calculate new total score based on the difference
                 const newTotal = oldTotal + change.difference;
                 gameState.scores[playerId] = Math.max(0, newTotal);
                 
-                console.log(`Updated ${playerName} score: ${oldTotal} -> ${gameState.scores[playerId]}`);
+                console.log(`Updated ${playerName} (${playerId}) score: ${oldTotal} -> ${gameState.scores[playerId]} (difference: ${change.difference})`);
+            } else {
+                console.log(`Player ${playerId} not found in game state`);
             }
         });
         
@@ -262,8 +267,11 @@ io.on('connection', (socket) => {
         
         io.emit('scores-updated', {
             totalScores: currentScores,
+            roundScores: gameState.roundScores || {},
             message: 'Punteggi aggiornati dall\'amministratore'
         });
+        
+        console.log('Updated total scores sent to all clients:', currentScores);
     });
     
     // Player disconnects
