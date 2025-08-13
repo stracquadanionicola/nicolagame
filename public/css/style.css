@@ -628,6 +628,177 @@ input[type="text"]::placeholder {
     animation: glow 2s ease-in-out infinite alternate;
 }
 
+/* Final Rankings Styles */
+.final-rankings-title {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.final-rankings-title h3 {
+    font-family: 'Orbitron', monospace;
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: var(--accent-green);
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+    margin-bottom: 10px;
+    animation: glow 2s ease-in-out infinite alternate;
+}
+
+.rankings-subtitle {
+    font-size: 1rem;
+    color: var(--text-light);
+    opacity: 0.8;
+    font-style: italic;
+}
+
+.final-rankings-container {
+    margin-bottom: 30px;
+}
+
+.final-rank-item {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    margin-bottom: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+    border-left: 4px solid var(--primary-cyan);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.final-rank-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.03), transparent);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    50% { transform: translateX(100%); }
+    100% { transform: translateX(100%); }
+}
+
+.final-rank-item.champion {
+    border-left-color: var(--accent-green);
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(255, 255, 255, 0.05));
+    box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
+    transform: scale(1.02);
+}
+
+.final-rank-item.podium {
+    border-left-width: 6px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.final-rank-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.rank-position {
+    margin-right: 20px;
+    min-width: 60px;
+    text-align: center;
+}
+
+.position-icon {
+    font-size: 1.8rem;
+    font-weight: 900;
+    color: var(--accent-orange);
+    text-shadow: 0 0 10px rgba(255, 136, 0, 0.6);
+}
+
+.final-rank-item.champion .position-icon {
+    font-size: 2.2rem;
+    animation: bounce 2s infinite;
+}
+
+.rank-player-info {
+    flex: 1;
+    margin-right: 20px;
+}
+
+.rank-player-name {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--accent-green);
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+    margin-bottom: 5px;
+    letter-spacing: 0.5px;
+}
+
+.rank-performance {
+    font-size: 0.9rem;
+    color: var(--primary-cyan);
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.rank-score {
+    text-align: right;
+    min-width: 100px;
+}
+
+.score-number {
+    display: block;
+    font-family: 'Orbitron', monospace;
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--accent-orange);
+    text-shadow: 0 0 10px rgba(255, 136, 0, 0.6);
+}
+
+.score-label {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    opacity: 0.7;
+}
+
+.final-stats {
+    margin-top: 30px;
+    padding: 25px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    text-align: center;
+}
+
+.stat-item {
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.stat-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.8rem;
+    font-weight: 900;
+    color: var(--accent-green);
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    opacity: 0.8;
+    font-weight: 600;
+}
+
 /* Responsive Design */
 @media (min-width: 769px) {
     /* Desktop-specific improvements for player names */
@@ -742,6 +913,16 @@ input[type="text"]::placeholder {
         font-size: 1.5rem;
     }
     
+    /* Final Rankings Tablet Styles */
+    .final-rankings-title h3 {
+        font-size: 2rem;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+    
     /* Touch-friendly improvements */
     .answer-item {
         padding: 8px 15px;
@@ -789,6 +970,46 @@ input[type="text"]::placeholder {
     }
     
     .countdown-letter {
+        font-size: 1.5rem;
+    }
+    
+    /* Final Rankings Mobile Styles */
+    .final-rankings-title h3 {
+        font-size: 1.8rem;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+    
+    .final-rank-item {
+        padding: 15px;
+        margin-bottom: 10px;
+    }
+    
+    .rank-position {
+        margin-right: 15px;
+        min-width: 50px;
+    }
+    
+    .position-icon {
+        font-size: 1.5rem;
+    }
+    
+    .final-rank-item.champion .position-icon {
+        font-size: 1.8rem;
+    }
+    
+    .rank-player-name {
+        font-size: 1.2rem;
+    }
+    
+    .score-number {
+        font-size: 1.3rem;
+    }
+    
+    .stat-value {
         font-size: 1.5rem;
     }
 }

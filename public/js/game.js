@@ -567,29 +567,95 @@ class GameClient {
 
     displayFinalScores(scores, players) {
         const container = document.getElementById('final-scores');
-        container.innerHTML = '<h3>Classifica Finale</h3>';
+        container.innerHTML = '';
+        
+        // Create title section
+        const titleSection = document.createElement('div');
+        titleSection.className = 'final-rankings-title';
+        titleSection.innerHTML = `
+            <h3>🏆 CLASSIFICA FINALE 🏆</h3>
+            <div class="rankings-subtitle">Punteggi totali dopo 10 round</div>
+        `;
+        container.appendChild(titleSection);
+        
+        // Create rankings container
+        const rankingsContainer = document.createElement('div');
+        rankingsContainer.className = 'final-rankings-container';
         
         const sortedPlayers = Object.keys(scores).sort((a, b) => scores[b] - scores[a]);
         
         sortedPlayers.forEach((socketId, index) => {
-            const scoreItem = document.createElement('div');
-            scoreItem.className = `score-item ${index === 0 ? 'leader' : ''}`;
+            const playerScore = scores[socketId] || 0;
+            const playerData = (players[socketId] && players[socketId].name) ? players[socketId] : null;
+            const playerName = playerData ? playerData.name : `Giocatore ${socketId.substring(0, 6)}`;
             
-            const playerName = document.createElement('div');
-            playerName.className = 'player-name';
-            playerName.style.color = 'var(--text-light)';
-            playerName.style.fontWeight = 'bold';
-            const name = (players[socketId] && players[socketId].name) || 'Giocatore Sconosciuto';
-            playerName.textContent = `${index + 1}. ${name}`;
+            const rankItem = document.createElement('div');
+            rankItem.className = `final-rank-item ${index === 0 ? 'champion' : ''} ${index <= 2 ? 'podium' : ''}`;
             
-            const scoreValue = document.createElement('div');
-            scoreValue.className = 'score-value';
-            scoreValue.textContent = scores[socketId];
+            // Medal/Position icon
+            let positionIcon = '';
+            if (index === 0) positionIcon = '🥇';
+            else if (index === 1) positionIcon = '🥈';
+            else if (index === 2) positionIcon = '🥉';
+            else positionIcon = `#${index + 1}`;
             
-            scoreItem.appendChild(playerName);
-            scoreItem.appendChild(scoreValue);
-            container.appendChild(scoreItem);
+            // Score performance indicator
+            let performance = '';
+            if (playerScore >= 300) performance = '🔥 INCREDIBILE!';
+            else if (playerScore >= 200) performance = '⭐ OTTIMO!';
+            else if (playerScore >= 100) performance = '👍 BUONO';
+            else if (playerScore >= 50) performance = '📈 DISCRETO';
+            else performance = '💪 RIPROVA!';
+            
+            rankItem.innerHTML = `
+                <div class="rank-position">
+                    <span class="position-icon">${positionIcon}</span>
+                </div>
+                <div class="rank-player-info">
+                    <div class="rank-player-name">${playerName}</div>
+                    <div class="rank-performance">${performance}</div>
+                </div>
+                <div class="rank-score">
+                    <span class="score-number">${playerScore}</span>
+                    <span class="score-label">punti</span>
+                </div>
+            `;
+            
+            rankingsContainer.appendChild(rankItem);
         });
+        
+        container.appendChild(rankingsContainer);
+        
+        // Add statistics section
+        const statsSection = document.createElement('div');
+        statsSection.className = 'final-stats';
+        
+        const totalPlayers = sortedPlayers.length;
+        const maxScore = Math.max(...Object.values(scores));
+        const avgScore = Math.round(Object.values(scores).reduce((a, b) => a + b, 0) / totalPlayers);
+        
+        statsSection.innerHTML = `
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-value">${totalPlayers}</div>
+                    <div class="stat-label">Giocatori</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${maxScore}</div>
+                    <div class="stat-label">Punteggio Max</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${avgScore}</div>
+                    <div class="stat-label">Media</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">10</div>
+                    <div class="stat-label">Round Giocati</div>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(statsSection);
     }
 
     updateLobby() {
