@@ -43,11 +43,13 @@ let gameState = {
     currentLetter: '',
     roundStartTime: null,
     roundDuration: 120000, // 2 minutes per round
-        scores: {},
-        roundTimer: null,
-        usedLetters: [], // Track used letters
-        roundScores: {} // Initialize round scores tracking
-    };// Categories for the game
+    scores: {},
+    roundTimer: null,
+    usedLetters: [], // Track used letters
+    roundScores: {} // Initialize round scores tracking
+};
+
+// Categories for the game
 const categories = ['Nome', 'Cognome', 'Città', 'Animale', 'Cosa', 'Mestiere', 'Personaggi Televisivi'];
 
 // Generate random letter (excluding difficult ones and already used letters)
@@ -118,24 +120,40 @@ function findPlayerIdByName(playerName) {
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
     
+    // Add error handling for all socket events
+    socket.on('error', (error) => {
+        console.error(`Socket error for ${socket.id}:`, error);
+    });
+    
     // Player joins the game
     socket.on('join-game', (playerName) => {
-        // Check if game is full
-        const currentPlayerCount = Object.keys(gameState.players).length;
-        if (currentPlayerCount >= gameState.maxPlayers) {
-            socket.emit('game-full', {
-                message: `Il gioco è pieno! Massimo ${gameState.maxPlayers} giocatori consentiti.`,
-                maxPlayers: gameState.maxPlayers,
-                currentPlayers: currentPlayerCount
-            });
-            return;
-        }
+        try {
+            // Validate input
+            if (!playerName || typeof playerName !== 'string' || playerName.trim().length === 0) {
+                console.log(`Invalid player name from ${socket.id}:`, playerName);
+                socket.emit('join-error', { message: 'Nome giocatore non valido' });
+                return;
+            }
+            
+            // Sanitize player name
+            const sanitizedName = playerName.trim().substring(0, 20); // Max 20 characters
+            
+            // Check if game is full
+            const currentPlayerCount = Object.keys(gameState.players).length;
+            if (currentPlayerCount >= gameState.maxPlayers) {
+                socket.emit('game-full', {
+                    message: `Il gioco è pieno! Massimo ${gameState.maxPlayers} giocatori consentiti.`,
+                    maxPlayers: gameState.maxPlayers,
+                    currentPlayers: currentPlayerCount
+                });
+                return;
+            }
 
-        const playerId = uuidv4();
-        gameState.players[socket.id] = {
-            id: playerId,
-            name: playerName,
-            answers: {},
+            const playerId = uuidv4();
+            gameState.players[socket.id] = {
+                id: playerId,
+                name: sanitizedName,
+                answers: {},
             ready: false,
             submitted: false // Initialize submitted status
         };
@@ -156,6 +174,11 @@ io.on('connection', (socket) => {
         io.emit('player-joined', {
             players: Object.values(gameState.players)
         });
+        
+        } catch (error) {
+            console.error(`Error in join-game for ${socket.id}:`, error);
+            socket.emit('join-error', { message: 'Errore durante l\'ingresso nel gioco' });
+        }
     });
     
     // Player sets ready in lobby (initial ready)
@@ -226,17 +249,41 @@ io.on('connection', (socket) => {
     
     // Player submits answers
     socket.on('submit-answers', (answers) => {
-        if (gameState.players[socket.id] && gameState.gameStarted) {
+        try {
+            // Validate player exists and game is active
+            if (!gameState.players[socket.id]) {
+                console.log(`Submit answers from unknown player: ${socket.id}`);
+                return;
+            }
+            
+            if (!gameState.gameStarted) {
+                console.log(`Submit answers outside game from ${gameState.players[socket.id].name}`);
+                return;
+            }
+            
             // Prevent double submission
             if (gameState.players[socket.id].submitted) {
                 console.log(`Player ${gameState.players[socket.id].name} tried to submit answers twice, ignoring`);
                 return;
             }
             
-            gameState.players[socket.id].answers = answers;
+            // Validate and sanitize answers
+            const sanitizedAnswers = {};
+            if (answers && typeof answers === 'object') {
+                for (const [category, answer] of Object.entries(answers)) {
+                    if (typeof answer === 'string') {
+                        // Sanitize answer: remove dangerous characters, limit length
+                        sanitizedAnswers[category] = answer.trim().substring(0, 50).replace(/[<>"'&]/g, '');
+                    } else {
+                        sanitizedAnswers[category] = '';
+                    }
+                }
+            }
+            
+            gameState.players[socket.id].answers = sanitizedAnswers;
             gameState.players[socket.id].submitted = true;
             
-            console.log(`Player ${gameState.players[socket.id].name} submitted answers:`, answers);
+            console.log(`Player ${gameState.players[socket.id].name} submitted answers:`, sanitizedAnswers);
             
             // Check if all connected players have submitted
             const connectedPlayers = Object.values(gameState.players);
@@ -249,6 +296,8 @@ io.on('connection', (socket) => {
                 console.log('All players submitted, ending round');
                 endRound();
             }
+        } catch (error) {
+            console.error(`Error in submit-answers for ${socket.id}:`, error);
         }
     });
     

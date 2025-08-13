@@ -15,18 +15,24 @@ class GameClient {
         
         // Cache DOM elements
         this.cachedElements = {};
-        
-        this.init();
     }
     
-    init() {
+    initializeApp() {
         try {
+            // Verify essential DOM elements exist
+            if (!this.verifyDOM()) {
+                console.error('Essential DOM elements missing, cannot initialize');
+                this.showNotification('Errore di caricamento dell\'applicazione', 'error');
+                return;
+            }
+            
             // Initialize Socket.io
             if (typeof io !== 'undefined') {
                 this.socket = io();
                 console.log('Socket.io initialized');
             } else {
                 console.error('Socket.io not loaded');
+                this.showNotification('Socket.io non disponibile', 'error');
                 return;
             }
             
@@ -39,57 +45,128 @@ class GameClient {
             
             console.log('GameClient initialized successfully');
         } catch (error) {
-            console.error('Error in GameClient init:', error);
+            console.error('Error in GameClient initializeApp:', error);
+            this.showNotification('Errore durante l\'inizializzazione', 'error');
         }
+    }
+    
+    verifyDOM() {
+        const essentialElements = [
+            'login-screen',
+            'lobby-screen', 
+            'countdown-screen',
+            'game-screen',
+            'results-screen',
+            'final-screen',
+            'player-name',
+            'join-btn',
+            'ready-btn',
+            'submit-btn',
+            'next-round-btn'
+        ];
+        
+        const missingElements = [];
+        
+        essentialElements.forEach(id => {
+            if (!document.getElementById(id)) {
+                missingElements.push(id);
+            }
+        });
+        
+        if (missingElements.length > 0) {
+            console.error('Missing DOM elements:', missingElements);
+            return false;
+        }
+        
+        return true;
     }
 
     initializeEventListeners() {
-        console.log('Setting up event listeners...');
-        
-        // Login screen
-        const joinBtn = document.getElementById('join-btn');
-        const playerNameInput = document.getElementById('player-name');
-        
-        if (joinBtn && playerNameInput) {
-            joinBtn.addEventListener('click', () => this.joinGame());
-            playerNameInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.joinGame();
-                }
-            });
-            console.log('Login listeners added');
+        try {
+            // Remove existing event listeners first to prevent duplicates
+            this.removeEventListeners();
+            
+            // Store bound methods for proper cleanup
+            this.boundHandlers = {
+                joinGame: this.joinGame.bind(this),
+                readyUp: this.readyUp.bind(this),
+                submitAnswers: this.submitAnswers.bind(this),
+                nextRound: this.nextRound.bind(this)
+            };
+            
+            // Join game
+            const joinBtn = this.safeGetElement('join-btn');
+            if (joinBtn) {
+                joinBtn.addEventListener('click', this.boundHandlers.joinGame);
+            }
+            
+            // Ready up
+            const readyBtn = this.safeGetElement('ready-btn');
+            if (readyBtn) {
+                readyBtn.addEventListener('click', this.boundHandlers.readyUp);
+            }
+            
+            // Submit answers
+            const submitBtn = this.safeGetElement('submit-btn');
+            if (submitBtn) {
+                submitBtn.addEventListener('click', this.boundHandlers.submitAnswers);
+            }
+            
+            // Next round
+            const nextRoundBtn = this.safeGetElement('next-round-btn');
+            if (nextRoundBtn) {
+                nextRoundBtn.addEventListener('click', this.boundHandlers.nextRound);
+            }
+            
+            // Enter key for player name
+            const playerNameInput = this.safeGetElement('player-name');
+            if (playerNameInput) {
+                this.boundHandlers.playerNameEnter = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this.boundHandlers.joinGame();
+                    }
+                };
+                playerNameInput.addEventListener('keypress', this.boundHandlers.playerNameEnter);
+            }
+            
+        } catch (error) {
+            console.error('Error initializing event listeners:', error);
         }
-        
-        // Lobby screen
-        const readyBtn = document.getElementById('ready-btn');
-        if (readyBtn) {
-            readyBtn.addEventListener('click', () => this.setReady());
-            console.log('Ready button listener added');
+    }
+    
+    removeEventListeners() {
+        try {
+            if (!this.boundHandlers) return;
+            
+            const joinBtn = document.getElementById('join-btn');
+            if (joinBtn && this.boundHandlers.joinGame) {
+                joinBtn.removeEventListener('click', this.boundHandlers.joinGame);
+            }
+            
+            const readyBtn = document.getElementById('ready-btn');
+            if (readyBtn && this.boundHandlers.readyUp) {
+                readyBtn.removeEventListener('click', this.boundHandlers.readyUp);
+            }
+            
+            const submitBtn = document.getElementById('submit-btn');
+            if (submitBtn && this.boundHandlers.submitAnswers) {
+                submitBtn.removeEventListener('click', this.boundHandlers.submitAnswers);
+            }
+            
+            const nextRoundBtn = document.getElementById('next-round-btn');
+            if (nextRoundBtn && this.boundHandlers.nextRound) {
+                nextRoundBtn.removeEventListener('click', this.boundHandlers.nextRound);
+            }
+            
+            const playerNameInput = document.getElementById('player-name');
+            if (playerNameInput && this.boundHandlers.playerNameEnter) {
+                playerNameInput.removeEventListener('keypress', this.boundHandlers.playerNameEnter);
+            }
+            
+        } catch (error) {
+            console.error('Error removing event listeners:', error);
         }
-        
-        // Game screen
-        const submitBtn = document.getElementById('submit-btn');
-        if (submitBtn) {
-            submitBtn.addEventListener('click', () => this.submitAnswers());
-            console.log('Submit button listener added');
-        }
-        
-        // Results screen
-        const nextRoundBtn = document.getElementById('next-round-btn');
-        if (nextRoundBtn) {
-            nextRoundBtn.addEventListener('click', () => this.readyForNextRound());
-            console.log('Next round button listener added');
-        }
-        
-        // Final screen
-        const newGameBtn = document.getElementById('new-game-btn');
-        if (newGameBtn) {
-            newGameBtn.addEventListener('click', () => this.startNewGame());
-            console.log('New game button listener added');
-        }
-        
-        console.log('Event listeners setup complete');
     }
 
     setupSocketListeners() {
@@ -180,20 +257,46 @@ class GameClient {
             }, 3000);
         });
         
+        this.socket.on('join-error', (data) => {
+            console.log('Join error:', data);
+            this.showNotification(data.message, 'error');
+        });
+        
         console.log('Socket listeners setup complete');
     }
 
     joinGame() {
         const nameInput = document.getElementById('player-name');
+        if (!nameInput) {
+            this.showNotification('Errore: campo nome non trovato', 'error');
+            return;
+        }
+        
         const name = nameInput.value.trim();
         
+        // Enhanced validation
         if (name.length < 2) {
             this.showNotification('Il nome deve avere almeno 2 caratteri!', 'error');
+            nameInput.focus();
             return;
         }
         
         if (name.length > 20) {
             this.showNotification('Il nome è troppo lungo (max 20 caratteri)!', 'error');
+            nameInput.focus();
+            return;
+        }
+        
+        // Check for invalid characters
+        if (!/^[a-zA-Z0-9\s\u00C0-\u017F]+$/.test(name)) {
+            this.showNotification('Il nome contiene caratteri non validi!', 'error');
+            nameInput.focus();
+            return;
+        }
+        
+        // Check socket connection
+        if (!this.socket || !this.socket.connected) {
+            this.showNotification('Connessione al server non disponibile. Riprova...', 'error');
             return;
         }
         
@@ -276,6 +379,16 @@ class GameClient {
             this.cachedElements[id] = document.getElementById(id);
         }
         return this.cachedElements[id];
+    }
+    
+    // Safe DOM element getter with error handling
+    safeGetElement(id, operation = 'operation') {
+        const element = this.getElement(id);
+        if (!element) {
+            console.error(`Element with id '${id}' not found for ${operation}`);
+            return null;
+        }
+        return element;
     }
 
     submitAnswers() {
@@ -825,18 +938,35 @@ class GameClient {
     }
 
     switchScreen(screenName) {
-        // Hide all screens
-        document.querySelectorAll('.screen').forEach(screen => {
-            screen.classList.remove('active');
-        });
-        
-        // Show target screen
-        document.getElementById(`${screenName}-screen`).classList.add('active');
-        this.currentScreen = screenName;
-        
-        // Hide admin banner when not on results screen
-        if (this.adminEditor && screenName !== 'results') {
-            this.adminEditor.hide();
+        try {
+            if (!screenName || typeof screenName !== 'string') {
+                console.error('Invalid screen name:', screenName);
+                return;
+            }
+            
+            // Hide all screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            // Show target screen
+            const targetScreen = document.getElementById(`${screenName}-screen`);
+            if (!targetScreen) {
+                console.error(`Screen not found: ${screenName}-screen`);
+                return;
+            }
+            
+            targetScreen.classList.add('active');
+            this.currentScreen = screenName;
+            
+            // Hide admin banner when not on results screen
+            if (this.adminEditor && screenName !== 'results') {
+                this.adminEditor.hide();
+            }
+            
+            console.log(`Switched to screen: ${screenName}`);
+        } catch (error) {
+            console.error('Error switching screen:', error);
         }
     }
 
@@ -881,94 +1011,192 @@ class GameClient {
     }
 
     showNotification(message, type = 'info') {
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 20px;
-            border-radius: 8px;
-            color: white;
-            font-weight: bold;
-            z-index: 1000;
-            max-width: 300px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            animation: slideIn 0.3s ease-out;
-            ${type === 'error' ? 'background: linear-gradient(135deg, #ff4757, #ff3838);' : ''}
-            ${type === 'success' ? 'background: linear-gradient(135deg, #2ed573, #1dd1a1);' : ''}
-            ${type === 'info' ? 'background: linear-gradient(135deg, #3742fa, #2f3542);' : ''}
-        `;
-        
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        // Auto remove after 3 seconds
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.style.animation = 'slideOut 0.3s ease-out';
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.parentNode.removeChild(notification);
-                    }
-                }, 300);
+        try {
+            // Validate input
+            if (!message || typeof message !== 'string') {
+                console.error('Invalid notification message:', message);
+                return;
             }
-        }, 3000);
+            
+            // Sanitize message
+            const sanitizedMessage = message.substring(0, 200); // Max 200 chars
+            
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                z-index: 1000;
+                max-width: 300px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                animation: slideIn 0.3s ease-out;
+                ${type === 'error' ? 'background: linear-gradient(135deg, #ff4757, #ff3838);' : ''}
+                ${type === 'success' ? 'background: linear-gradient(135deg, #2ed573, #1dd1a1);' : ''}
+                ${type === 'warning' ? 'background: linear-gradient(135deg, #ffa726, #ff9800);' : ''}
+                ${type === 'info' ? 'background: linear-gradient(135deg, #3742fa, #2f3542);' : ''}
+            `;
+            
+            notification.textContent = sanitizedMessage;
+            document.body.appendChild(notification);
+            
+            // Auto remove after 3 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.style.animation = 'slideOut 0.3s ease-out';
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            notification.parentNode.removeChild(notification);
+                        }
+                    }, 300);
+                }
+            }, 3000);
+        } catch (error) {
+            console.error('Error showing notification:', error);
+        }
+    }
+    
+    cleanup() {
+        try {
+            console.log('Cleaning up game client...');
+            
+            // Remove event listeners
+            if (this.removeEventListeners) {
+                this.removeEventListeners();
+            }
+            
+            // Clean up timers
+            this.cleanupTimers();
+            
+            // Disconnect socket
+            if (this.socket && this.socket.connected) {
+                this.socket.disconnect();
+            }
+            
+            // Clear admin editor
+            if (this.adminEditor && this.adminEditor.cleanup) {
+                this.adminEditor.cleanup();
+            }
+            
+        } catch (error) {
+            console.error('Error during cleanup:', error);
+        }
+    }
+    
+    safeDisconnect() {
+        try {
+            if (this.socket && this.socket.connected) {
+                // Send leave game event before disconnecting
+                this.socket.emit('leave-game');
+                
+                // Disconnect after a short delay
+                setTimeout(() => {
+                    if (this.socket && this.socket.connected) {
+                        this.socket.disconnect();
+                    }
+                }, 100);
+            }
+        } catch (error) {
+            console.error('Error during safe disconnect:', error);
+        }
     }
 }
 
 // Admin Score Editor Class
 class AdminScoreEditor {
     constructor(gameClient) {
-        this.gameClient = gameClient;
-        this.isOpen = false;
-        this.currentRoundScores = {};
-        this.originalScores = {};
-        this.playersInfo = {}; // Store player ID -> name mapping
-        
-        this.initializeElements();
-        this.setupEventListeners();
+        try {
+            this.gameClient = gameClient;
+            this.isOpen = false;
+            this.currentRoundScores = {};
+            this.originalScores = {};
+            this.playersInfo = {}; // Store player ID -> name mapping
+            this.boundHandlers = {}; // Store bound event handlers for cleanup
+            
+            this.initializeElements();
+            this.setupEventListeners();
+        } catch (error) {
+            console.error('Error initializing AdminScoreEditor:', error);
+        }
     }
     
     initializeElements() {
-        this.banner = document.getElementById('admin-banner');
-        this.modal = document.getElementById('admin-modal');
-        this.closeBtn = document.getElementById('admin-close-btn');
-        this.saveBtn = document.getElementById('admin-save-btn');
-        this.playersList = document.getElementById('admin-players-list');
+        try {
+            this.banner = document.getElementById('admin-banner');
+            this.modal = document.getElementById('admin-modal');
+            this.closeBtn = document.getElementById('admin-close-btn');
+            this.saveBtn = document.getElementById('admin-save-btn');
+            this.playersList = document.getElementById('admin-players-list');
+            
+            // Verify essential elements exist
+            const missingElements = [];
+            if (!this.banner) missingElements.push('admin-banner');
+            if (!this.modal) missingElements.push('admin-modal');
+            if (!this.closeBtn) missingElements.push('admin-close-btn');
+            if (!this.saveBtn) missingElements.push('admin-save-btn');
+            if (!this.playersList) missingElements.push('admin-players-list');
+            
+            if (missingElements.length > 0) {
+                console.error('Missing admin elements:', missingElements);
+            }
+        } catch (error) {
+            console.error('Error initializing admin elements:', error);
+        }
     }
     
     setupEventListeners() {
-        if (this.banner) {
-            this.banner.addEventListener('click', () => this.openModal());
-        }
-        
-        if (this.closeBtn) {
-            this.closeBtn.addEventListener('click', () => this.closeModal());
-        }
-        
-        if (this.modal) {
-            this.modal.addEventListener('click', (e) => {
+        try {
+            // Bind handlers for proper cleanup
+            this.boundHandlers.openModal = () => this.openModal();
+            this.boundHandlers.closeModal = () => this.closeModal();
+            this.boundHandlers.saveChanges = () => this.saveChanges();
+            this.boundHandlers.modalClick = (e) => {
                 if (e.target === this.modal) {
                     this.closeModal();
                 }
-            });
-        }
-        
-        if (this.saveBtn) {
-            this.saveBtn.addEventListener('click', () => this.saveChanges());
+            };
+            
+            if (this.banner) {
+                this.banner.addEventListener('click', this.boundHandlers.openModal);
+            }
+            
+            if (this.closeBtn) {
+                this.closeBtn.addEventListener('click', this.boundHandlers.closeModal);
+            }
+            
+            if (this.modal) {
+                this.modal.addEventListener('click', this.boundHandlers.modalClick);
+            }
+            
+            if (this.saveBtn) {
+                this.saveBtn.addEventListener('click', this.boundHandlers.saveChanges);
+            }
+        } catch (error) {
+            console.error('Error setting up admin event listeners:', error);
         }
     }
     
     show(roundScores, totalScores, playersData) {
-        console.log('Admin panel showing with scores:', roundScores, totalScores, playersData);
-        this.currentRoundScores = { ...roundScores };
-        this.originalScores = { ...roundScores };
-        this.totalScores = { ...totalScores };
-        
-        // Update players info mapping if provided
-        if (playersData) {
+        try {
+            console.log('Admin panel showing with scores:', roundScores, totalScores, playersData);
+            
+            // Validate input data
+            if (!roundScores || typeof roundScores !== 'object') {
+                console.error('Invalid roundScores data');
+                return;
+            }
+            
+            this.currentRoundScores = { ...roundScores };
+            this.originalScores = { ...roundScores };
+            this.totalScores = { ...totalScores } || {};
+            
+            // Update players info mapping if provided
+            if (playersData && typeof playersData === 'object') {
             this.playersInfo = {};
             if (Array.isArray(playersData)) {
                 playersData.forEach(player => {
@@ -988,73 +1216,102 @@ class AdminScoreEditor {
         if (this.banner) {
             this.banner.classList.add('active');
         }
+        } catch (error) {
+            console.error('Error in AdminScoreEditor show:', error);
+        }
     }
     
     hide() {
-        console.log('Admin panel hiding');
-        if (this.banner) {
-            this.banner.classList.remove('active');
+        try {
+            console.log('Admin panel hiding');
+            if (this.banner) {
+                this.banner.classList.remove('active');
+            }
+            this.closeModal();
+        } catch (error) {
+            console.error('Error in AdminScoreEditor hide:', error);
         }
-        this.closeModal();
     }
     
     openModal() {
-        console.log('Opening admin modal');
-        this.isOpen = true;
-        this.renderPlayersList();
-        
-        if (this.modal) {
-            this.modal.classList.add('active');
+        try {
+            console.log('Opening admin modal');
+            this.isOpen = true;
+            this.renderPlayersList();
+            
+            if (this.modal) {
+                this.modal.classList.add('active');
+            }
+        } catch (error) {
+            console.error('Error opening admin modal:', error);
         }
     }
     
     closeModal() {
-        console.log('Closing admin modal');
-        this.isOpen = false;
-        
-        if (this.modal) {
-            this.modal.classList.remove('active');
+        try {
+            console.log('Closing admin modal');
+            this.isOpen = false;
+            
+            if (this.modal) {
+                this.modal.classList.remove('active');
+            }
+        } catch (error) {
+            console.error('Error closing admin modal:', error);
         }
     }
     
     renderPlayersList() {
-        if (!this.playersList) return;
-        
-        console.log('Rendering players list:');
-        console.log('- currentRoundScores:', this.currentRoundScores);
-        console.log('- playersInfo:', this.playersInfo);
-        console.log('- gameClient.gameState:', this.gameClient?.gameState);
-        
-        this.playersList.innerHTML = '';
-        
-        Object.keys(this.currentRoundScores).forEach(playerId => {
-            // Get the actual player name from gameState
-            const playerName = this.getPlayerNameById(playerId);
+        try {
+            if (!this.playersList) {
+                console.error('Players list element not found');
+                return;
+            }
             
-            console.log(`Player ID: ${playerId} -> Name: ${playerName}`);
+            console.log('Rendering players list:');
+            console.log('- currentRoundScores:', this.currentRoundScores);
+            console.log('- playersInfo:', this.playersInfo);
+            console.log('- gameClient.gameState:', this.gameClient?.gameState);
             
-            const playerDiv = document.createElement('div');
-            playerDiv.className = 'admin-player-item';
+            this.playersList.innerHTML = '';
             
-            const currentScore = this.currentRoundScores[playerId] || 0;
-            const totalScore = this.totalScores[playerId] || 0;
+            if (!this.currentRoundScores || typeof this.currentRoundScores !== 'object') {
+                console.error('Invalid currentRoundScores data');
+                return;
+            }
             
-            playerDiv.innerHTML = `
-                <div class="admin-player-info">
-                    <div class="admin-player-name">${playerName}</div>
-                    <div class="admin-player-round-score">Punteggio round: ${currentScore} | Totale: ${totalScore}</div>
-                </div>
-                <div class="admin-score-controls">
-                    <input type="number" 
-                           class="admin-score-input" 
-                           value="${currentScore}" 
-                           data-player="${playerId}"
-                           min="0" 
-                           max="70"
-                           step="1">
-                    <button class="admin-btn" onclick="window.adminEditor.setScore('${playerId}', 0)">
-                        Reset
-                    </button>
+            Object.keys(this.currentRoundScores).forEach(playerId => {
+                try {
+                    // Get the actual player name from gameState
+                    const playerName = this.getPlayerNameById(playerId);
+                    
+                    console.log(`Player ID: ${playerId} -> Name: ${playerName}`);
+                    
+                    const playerDiv = document.createElement('div');
+                    playerDiv.className = 'admin-player-item';
+                    
+                    const currentScore = this.currentRoundScores[playerId] || 0;
+                    const totalScore = this.totalScores[playerId] || 0;
+                    
+                    // Validate scores are numbers
+                    const validCurrentScore = isNaN(currentScore) ? 0 : parseInt(currentScore, 10);
+                    const validTotalScore = isNaN(totalScore) ? 0 : parseInt(totalScore, 10);
+                    
+                    playerDiv.innerHTML = `
+                        <div class="admin-player-info">
+                            <div class="admin-player-name">${this.sanitizeHTML(playerName)}</div>
+                            <div class="admin-player-round-score">Punteggio round: ${validCurrentScore} | Totale: ${validTotalScore}</div>
+                        </div>
+                        <div class="admin-score-controls">
+                            <input type="number" 
+                                   class="admin-score-input" 
+                                   value="${validCurrentScore}" 
+                                   data-player="${playerId}"
+                                   min="0" 
+                                   max="70"
+                                   step="1">
+                            <button class="admin-btn" onclick="window.adminEditor?.setScore('${playerId}', 0)">
+                                Reset
+                            </button>
                     <button class="admin-btn danger" onclick="window.adminEditor.adjustScore('${playerId}', -5)">
                         -5
                     </button>
@@ -1068,18 +1325,45 @@ class AdminScoreEditor {
             
             // Add event listener to input
             const input = playerDiv.querySelector('.admin-score-input');
-            input.addEventListener('input', (e) => {
-                const newScore = parseInt(e.target.value) || 0;
-                this.setScore(playerId, newScore);
+            if (input) {
+                input.addEventListener('input', (e) => {
+                    try {
+                        const newScore = parseInt(e.target.value, 10) || 0;
+                        this.setScore(playerId, newScore);
+                    } catch (error) {
+                        console.error('Error handling score input:', error);
+                    }
+                });
+            }
+                } catch (error) {
+                    console.error('Error rendering player:', playerId, error);
+                }
             });
-        });
+        } catch (error) {
+            console.error('Error in renderPlayersList:', error);
+        }
+    }
+    
+    sanitizeHTML(text) {
+        try {
+            if (typeof text !== 'string') {
+                return 'Player';
+            }
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        } catch (error) {
+            console.error('Error sanitizing HTML:', error);
+            return 'Player';
+        }
     }
     
     getPlayerNameById(playerId) {
-        // First check our local players info mapping
-        if (this.playersInfo[playerId]) {
-            return this.playersInfo[playerId];
-        }
+        try {
+            // First check our local players info mapping
+            if (this.playersInfo[playerId]) {
+                return this.playersInfo[playerId];
+            }
         
         // Check if gameClient has the gameState with players info
         if (this.gameClient && this.gameClient.gameState && this.gameClient.gameState.players) {
@@ -1106,131 +1390,183 @@ class AdminScoreEditor {
         // Final fallback: return a user-friendly shortened version
         const shortId = playerId.substring(0, 6);
         return `Giocatore ${shortId}`;
+        } catch (error) {
+            console.error('Error getting player name:', error);
+            return 'Player';
+        }
     }
     
     setScore(playerId, newScore) {
-        console.log(`Setting score for ${playerId} to ${newScore}`);
-        this.currentRoundScores[playerId] = Math.max(0, Math.min(70, newScore));
-        
-        // Update the input if it was changed programmatically
-        const input = document.querySelector(`[data-player="${playerId}"]`);
-        if (input && parseInt(input.value) !== this.currentRoundScores[playerId]) {
-            input.value = this.currentRoundScores[playerId];
+        try {
+            console.log(`Setting score for ${playerId} to ${newScore}`);
+            
+            // Validate inputs
+            if (!playerId || typeof playerId !== 'string') {
+                console.error('Invalid playerId');
+                return;
+            }
+            
+            if (isNaN(newScore)) {
+                console.error('Invalid score value');
+                return;
+            }
+            
+            this.currentRoundScores[playerId] = Math.max(0, Math.min(70, parseInt(newScore, 10)));
+            
+            // Update the input if it was changed programmatically
+            const input = document.querySelector(`[data-player="${playerId}"]`);
+            if (input && parseInt(input.value, 10) !== this.currentRoundScores[playerId]) {
+                input.value = this.currentRoundScores[playerId];
+            }
+            
+            this.updateTotalDisplay(playerId);
+        } catch (error) {
+            console.error('Error setting score:', error);
         }
-        
-        this.updateTotalDisplay(playerId);
     }
     
     adjustScore(playerId, adjustment) {
-        const currentScore = this.currentRoundScores[playerId] || 0;
-        this.setScore(playerId, currentScore + adjustment);
-        this.renderPlayersList();
+        try {
+            const currentScore = this.currentRoundScores[playerId] || 0;
+            this.setScore(playerId, currentScore + parseInt(adjustment, 10));
+            this.renderPlayersList();
+        } catch (error) {
+            console.error('Error adjusting score:', error);
+        }
     }
     
     updateTotalDisplay(playerId) {
-        const playerDiv = document.querySelector(`[data-player="${playerId}"]`)?.closest('.admin-player-item');
-        if (playerDiv) {
-            const originalRoundScore = this.originalScores[playerId] || 0;
-            const newRoundScore = this.currentRoundScores[playerId] || 0;
-            const scoreDifference = newRoundScore - originalRoundScore;
-            const newTotal = (this.totalScores[playerId] || 0) + scoreDifference;
-            
-            const roundScoreDiv = playerDiv.querySelector('.admin-player-round-score');
-            if (roundScoreDiv) {
-                roundScoreDiv.textContent = `Punteggio round: ${newRoundScore} | Totale: ${newTotal}`;
+        try {
+            const playerDiv = document.querySelector(`[data-player="${playerId}"]`)?.closest('.admin-player-item');
+            if (playerDiv) {
+                const originalRoundScore = this.originalScores[playerId] || 0;
+                const newRoundScore = this.currentRoundScores[playerId] || 0;
+                const scoreDifference = newRoundScore - originalRoundScore;
+                const newTotal = (this.totalScores[playerId] || 0) + scoreDifference;
+                
+                const roundScoreDiv = playerDiv.querySelector('.admin-player-round-score');
+                if (roundScoreDiv) {
+                    roundScoreDiv.textContent = `Punteggio round: ${newRoundScore} | Totale: ${newTotal}`;
+                }
             }
+        } catch (error) {
+            console.error('Error updating total display:', error);
         }
     }
     
     saveChanges() {
-        console.log('Saving score changes...');
-        
-        const changes = {};
-        let hasChanges = false;
-        
-        Object.keys(this.currentRoundScores).forEach(playerId => {
-            const originalScore = this.originalScores[playerId] || 0;
-            const newScore = this.currentRoundScores[playerId] || 0;
+        try {
+            console.log('Saving score changes...');
             
-            if (originalScore !== newScore) {
-                changes[playerId] = {
-                    oldScore: originalScore,
-                    newScore: newScore,
-                    difference: newScore - originalScore
-                };
-                hasChanges = true;
+            const changes = {};
+            let hasChanges = false;
+            
+            if (!this.currentRoundScores || !this.originalScores) {
+                console.error('Invalid score data');
+                this.gameClient.showNotification('Errore nei dati dei punteggi', 'error');
+                return;
             }
-        });
-        
-        if (hasChanges) {
-            console.log('Sending score changes to server:', changes);
-            this.gameClient.socket.emit('admin-score-update', changes);
             
-            // Show confirmation
-            this.showNotification('Punteggi aggiornati!', 'success');
-        } else {
-            this.showNotification('Nessuna modifica da salvare', 'info');
+            Object.keys(this.currentRoundScores).forEach(playerId => {
+                try {
+                    const originalScore = this.originalScores[playerId] || 0;
+                    const newScore = this.currentRoundScores[playerId] || 0;
+                    
+                    if (originalScore !== newScore) {
+                        changes[playerId] = {
+                            oldScore: originalScore,
+                            newScore: newScore,
+                            difference: newScore - originalScore
+                        };
+                        hasChanges = true;
+                    }
+                } catch (error) {
+                    console.error('Error processing score change for player:', playerId, error);
+                }
+            });
+            
+            if (hasChanges) {
+                console.log('Sending score changes to server:', changes);
+                
+                if (this.gameClient && this.gameClient.socket) {
+                    this.gameClient.socket.emit('admin-score-update', changes);
+                    this.gameClient.showNotification('Punteggi aggiornati!', 'success');
+                } else {
+                    console.error('Socket not available');
+                    this.gameClient.showNotification('Errore di connessione', 'error');
+                }
+            } else {
+                this.gameClient.showNotification('Nessuna modifica da salvare', 'info');
+            }
+            
+            this.closeModal();
+        } catch (error) {
+            console.error('Error in saveChanges:', error);
+            this.gameClient.showNotification('Errore nel salvataggio', 'error');
         }
-        
-        this.closeModal();
     }
     
-    showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: ${type === 'success' ? 'var(--accent-green)' : 'var(--primary-cyan)'};
-            color: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            z-index: 1002;
-            font-weight: 600;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            animation: slideInTop 0.3s ease-out;
-        `;
-        notification.textContent = message;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.animation = 'slideOutTop 0.3s ease-in';
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
+    cleanup() {
+        try {
+            // Remove event listeners
+            if (this.boundHandlers) {
+                if (this.banner && this.boundHandlers.openModal) {
+                    this.banner.removeEventListener('click', this.boundHandlers.openModal);
                 }
-            }, 300);
-        }, 2000);
+                
+                if (this.closeBtn && this.boundHandlers.closeModal) {
+                    this.closeBtn.removeEventListener('click', this.boundHandlers.closeModal);
+                }
+                
+                if (this.modal && this.boundHandlers.modalClick) {
+                    this.modal.removeEventListener('click', this.boundHandlers.modalClick);
+                }
+                
+                if (this.saveBtn && this.boundHandlers.saveChanges) {
+                    this.saveBtn.removeEventListener('click', this.boundHandlers.saveChanges);
+                }
+            }
+            
+            // Clear data
+            this.currentRoundScores = {};
+            this.originalScores = {};
+            this.playersInfo = {};
+            this.boundHandlers = {};
+            
+        } catch (error) {
+            console.error('Error during AdminScoreEditor cleanup:', error);
+        }
     }
 }
 
 // Initialize game when page loads
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, initializing game...');
-    
     try {
         window.gameClient = new GameClient();
-        console.log('Game initialized successfully');
+        window.gameClient.initializeApp();
+        
+        // Setup cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (window.gameClient) {
+                window.gameClient.cleanup();
+            }
+        });
+        
+        // Setup cleanup on visibility change (tab switch/close)
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && window.gameClient) {
+                window.gameClient.safeDisconnect();
+            }
+        });
+        
     } catch (error) {
-        console.error('Failed to initialize game:', error);
+        console.error('Error initializing game:', error);
     }
 });
 
 // Add CSS animations for notifications
 const style = document.createElement('style');
 style.textContent = `
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-    
-    @keyframes slideOut {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
-    }
-    
     @keyframes slideInTop {
         from { transform: translate(-50%, -100%); opacity: 0; }
         to { transform: translate(-50%, 0); opacity: 1; }
