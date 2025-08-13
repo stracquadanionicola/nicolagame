@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>GAME - Nome, Cognome, Città</title>
+    <link rel="stylesheet" href="css/style.css?v=1.2">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="game-container">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen active">
+            <div class="login-panel">
+                <h1 class="game-title">GAME</h1>
+                <h2 class="subtitle">Nome, Cognome, Città</h2>
+                <div class="input-group">
+                    <input type="text" id="player-name" placeholder="Inserisci il tuo nome" maxlength="20">
+                    <button id="join-btn" class="neon-button">ENTRA NEL GIOCO</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lobby Screen -->
+        <div id="lobby-screen" class="screen">
+            <div class="lobby-panel">
+                <h2 class="panel-title">SALA D'ATTESA</h2>
+                <div class="players-list">
+                    <h3>Giocatori connessi:</h3>
+                    <div id="players-container"></div>
+                </div>
+                <div class="game-info">
+                    <p>Giocatori: <span id="player-count" class="highlight">0/10</span></p>
+                    <p>Rounds: <span class="highlight">10</span></p>
+                    <p>Tempo per round: <span class="highlight">2 minuti</span></p>
+                </div>
+                <button id="ready-btn" class="neon-button">PRONTO</button>
+                <div id="ready-status" class="ready-status"></div>
+            </div>
+        </div>
+
+        <!-- Countdown Screen -->
+        <div id="countdown-screen" class="screen">
+            <div class="countdown-panel">
+                <h2 class="panel-title">PRONTI?</h2>
+                <div class="countdown-info">
+                    <p>Round <span id="countdown-round">1</span>/10</p>
+                    <p>Lettera: <span id="countdown-letter" class="countdown-letter">A</span></p>
+                </div>
+                <div class="countdown-display">
+                    <span id="countdown-number">3</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div class="game-header">
+                <div class="round-info">
+                    <span>Round <span id="current-round">1</span>/10</span>
+                </div>
+                <div class="letter-display">
+                    <span id="current-letter">A</span>
+                </div>
+                <div class="timer">
+                    <span id="time-remaining">2:00</span>
+                </div>
+            </div>
+
+            <div class="game-form">
+                <div class="categories-grid">
+                    <div class="category-item">
+                        <label>Nome</label>
+                        <input type="text" id="nome" placeholder="Nome che inizia per..." maxlength="50">
+                    </div>
+                    <div class="category-item">
+                        <label>Cognome</label>
+                        <input type="text" id="cognome" placeholder="Cognome che inizia per..." maxlength="50">
+                    </div>
+                    <div class="category-item">
+                        <label>Città</label>
+                        <input type="text" id="citta" placeholder="Città che inizia per..." maxlength="50">
+                    </div>
+                    <div class="category-item">
+                        <label>Animale</label>
+                        <input type="text" id="animale" placeholder="Animale che inizia per..." maxlength="50">
+                    </div>
+                    <div class="category-item">
+                        <label>Cosa</label>
+                        <input type="text" id="cosa" placeholder="Cosa che inizia per..." maxlength="50">
+                    </div>
+                    <div class="category-item">
+                        <label>Mestiere</label>
+                        <input type="text" id="mestiere" placeholder="Mestiere che inizia per..." maxlength="50">
+                    </div>
+                    <div class="category-item">
+                        <label>Personaggi Televisivi</label>
+                        <input type="text" id="personaggi-televisivi" placeholder="Personaggio TV che inizia per..." maxlength="50">
+                    </div>
+                </div>
+                <button id="submit-btn" class="neon-button">INVIA RISPOSTE</button>
+            </div>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="results-screen" class="screen">
+            <div class="results-panel">
+                <h2 class="panel-title">RISULTATI ROUND</h2>
+                <div id="answers-comparison"></div>
+                <div id="scores-display"></div>
+                <div class="next-round-section">
+                    <div id="ready-counter" class="ready-counter">
+                        <span>Giocatori pronti: </span>
+                        <span id="ready-count">0/0</span>
+                    </div>
+                    <button id="next-round-btn" class="neon-button">PROSSIMO ROUND</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Final Results Screen -->
+        <div id="final-screen" class="screen">
+            <div class="final-panel">
+                <h2 class="panel-title">PARTITA TERMINATA</h2>
+                <div id="winner-announcement"></div>
+                <div id="final-scores"></div>
+                <button id="new-game-btn" class="neon-button">NUOVA PARTITA</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Score Editor Banner -->
+    <div id="admin-banner" class="admin-banner">
+        <i>⚙️</i>
+    </div>
+
+    <!-- Admin Score Editor Modal -->
+    <div id="admin-modal" class="admin-modal">
+        <div class="admin-modal-content">
+            <div class="admin-modal-header">
+                <h3 class="admin-modal-title">MODIFICA PUNTEGGI</h3>
+                <button id="admin-close-btn" class="admin-close-btn">×</button>
+            </div>
+            <div id="admin-players-list"></div>
+            <button id="admin-save-btn" class="admin-save-btn">SALVA MODIFICHE</button>
+        </div>
+    </div>
+
+    <!-- Particle Background -->
+    <div class="particles-container">
+        <canvas id="particles-canvas"></canvas>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/particles.js"></script>
+    <script src="js/game.js?v=202508131502"></script>
+</body>
+</html>
