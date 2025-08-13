@@ -104,12 +104,56 @@ body {
 
 .title-word {
     display: inline-block;
-    background: linear-gradient(45deg, var(--primary-cyan), var(--primary-purple));
+    /* Strong fallback color for maximum visibility */
+    color: var(--accent-green);
+    /* Modern gradient effect for supported browsers */
+    background: linear-gradient(45deg, var(--primary-cyan), var(--accent-green));
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0 0 30px var(--primary-cyan);
-    animation: glow 2s ease-in-out infinite alternate;
+    /* Multiple shadows for maximum visibility */
+    text-shadow: 
+        0 0 15px var(--primary-cyan),
+        0 0 25px var(--accent-green),
+        2px 2px 8px rgba(0, 0, 0, 1),
+        0 0 35px rgba(0, 255, 136, 0.6);
+    animation: titleGlow 2s ease-in-out infinite alternate;
+    filter: drop-shadow(0 0 10px var(--accent-green));
+    /* Ensure text is always visible */
+    position: relative;
+}
+
+/* Fallback for older browsers */
+.title-word::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    color: var(--accent-green);
+    text-shadow: 
+        0 0 15px var(--primary-cyan),
+        0 0 25px var(--accent-green),
+        2px 2px 8px rgba(0, 0, 0, 1);
+    z-index: -1;
+    filter: none;
+}
+
+@keyframes titleGlow {
+    from { 
+        filter: brightness(1) drop-shadow(0 0 10px var(--accent-green)); 
+        text-shadow: 
+            0 0 15px var(--primary-cyan),
+            0 0 25px var(--accent-green),
+            2px 2px 8px rgba(0, 0, 0, 1);
+    }
+    to { 
+        filter: brightness(1.3) drop-shadow(0 0 20px var(--accent-green)); 
+        text-shadow: 
+            0 0 20px var(--primary-cyan),
+            0 0 35px var(--accent-green),
+            2px 2px 8px rgba(0, 0, 0, 1),
+            0 0 40px rgba(0, 255, 136, 0.8);
+    }
 }
 
 @keyframes glow {
