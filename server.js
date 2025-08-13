@@ -24,6 +24,11 @@ app.use(express.static(path.join(__dirname, 'public'), {
     }
 }));
 
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
 // Game state
 let gameState = {
     players: {},
@@ -419,6 +424,16 @@ function endGame() {
 }
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+
+// Add more comprehensive logging
+console.log('Starting server...');
+console.log('Environment:', process.env.NODE_ENV || 'development');
+console.log('Port:', PORT);
+
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
+    console.log('Server started successfully!');
+}).on('error', (err) => {
+    console.error('Server failed to start:', err);
+    process.exit(1);
 });
