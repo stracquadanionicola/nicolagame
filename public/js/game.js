@@ -280,9 +280,11 @@ class GameClient {
             'Personaggi Televisivi': document.getElementById('personaggi-televisivi').value.trim()
         };
         
-        // Check if at least one answer is provided
+        // Check if at least one answer is provided (only for manual submission)
         const hasAnswers = Object.values(answers).some(answer => answer.length > 0);
-        if (!hasAnswers) {
+        const isAutoSubmit = submitBtn.textContent === 'TEMPO SCADUTO!';
+        
+        if (!hasAnswers && !isAutoSubmit) {
             this.showNotification('Inserisci almeno una risposta!', 'error');
             return;
         }
@@ -302,13 +304,17 @@ class GameClient {
         this.socket.emit('submit-answers', answers);
         
         submitBtn.disabled = true;
-        submitBtn.textContent = 'INVIATE!';
+        if (!isAutoSubmit) {
+            submitBtn.textContent = 'INVIATE!';
+            this.showNotification('Risposte inviate!', 'success');
+        } else {
+            submitBtn.textContent = 'INVIATE! (TEMPO SCADUTO)';
+            this.showNotification('Tempo scaduto! Risposte inviate automaticamente.', 'warning');
+        }
         
         // Disable all input fields
         const inputs = document.querySelectorAll('#game-screen input[type="text"]');
         inputs.forEach(input => input.disabled = true);
-        
-        this.showNotification('Risposte inviate!', 'success');
     }
 
     startRound(data) {
@@ -435,11 +441,21 @@ class GameClient {
                 clearInterval(this.timer);
                 this.timer = null;
                 
-                // Only auto-submit if not already submitted
+                // Only auto-submit if not already submitted and still in game screen
                 const submitBtn = document.getElementById('submit-btn');
-                if (!submitBtn.disabled) {
-                    console.log('Time expired, auto-submitting answers');
-                    this.submitAnswers();
+                if (!submitBtn.disabled && this.currentScreen === 'game') {
+                    console.log('Time expired, auto-submitting current answers');
+                    
+                    // Mark button to indicate auto-submission
+                    submitBtn.textContent = 'TEMPO SCADUTO!';
+                    submitBtn.style.backgroundColor = '#ff6600';
+                    
+                    // Submit after a brief delay to show the message
+                    setTimeout(() => {
+                        this.submitAnswers();
+                    }, 500);
+                } else {
+                    console.log('Time expired but already submitted or not in game screen');
                 }
             }
         }, 1000);

@@ -361,7 +361,16 @@ function startNewRound() {
     // Auto-end round after duration
     gameState.roundTimer = setTimeout(() => {
         if (gameState.currentRound > 0 && gameState.gameStarted) {
-            console.log('Round time expired, ending round');
+            console.log('Round time expired, auto-submitting for all players and ending round');
+            
+            // Mark all remaining players as submitted with their current answers
+            Object.values(gameState.players).forEach(player => {
+                if (!player.submitted) {
+                    player.submitted = true;
+                    console.log(`Auto-submitted for player ${player.name} with answers:`, player.answers || {});
+                }
+            });
+            
             endRound();
         }
     }, gameState.roundDuration);
