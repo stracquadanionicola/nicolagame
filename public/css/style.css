@@ -988,8 +988,9 @@ input[type="text"]::placeholder {
 @media (max-width: 480px) {
     .game-title {
         font-size: 2rem;
-        flex-direction: column;
-        gap: 0;
+        flex-direction: row;
+        gap: 5px;
+        justify-content: center;
     }
     
     .subtitle {
