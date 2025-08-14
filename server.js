@@ -42,7 +42,7 @@ let gameState = {
     gameStarted: false,
     currentLetter: '',
     roundStartTime: null,
-    roundDuration: 120000, // 2 minutes per round
+    roundDuration: 60000, // 1 minute per round
     scores: {},
     roundTimer: null,
     usedLetters: [], // Track used letters
@@ -365,7 +365,7 @@ io.on('connection', (socket) => {
                 gameStarted: false,
                 currentLetter: '',
                 roundStartTime: null,
-                roundDuration: 120000,
+                roundDuration: 60000,
                 scores: {},
                 roundTimer: null,
                 usedLetters: [],
@@ -543,7 +543,7 @@ function endGame() {
         gameStarted: false,
         currentLetter: '',
         roundStartTime: null,
-        roundDuration: 120000,
+        roundDuration: 60000,
         scores: {},
         roundTimer: null,
         usedLetters: [] // Reset used letters for new game
