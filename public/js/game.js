@@ -12,9 +12,22 @@ class GameClient {
         this.adminEditor = null;
         this.isAutoSubmitting = false; // Track auto-submission state
         this.connectionAttempts = 0; // Track connection attempts
+        this.isMobile = this.detectMobile(); // Detect mobile device
         
         // Cache DOM elements
         this.cachedElements = {};
+        
+        console.log('Mobile device detected:', this.isMobile);
+    }
+    
+    detectMobile() {
+        // Multiple methods to detect mobile devices
+        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+        const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const isSmallScreen = window.innerWidth <= 768;
+        
+        return isMobileUA || (isTouchDevice && isSmallScreen);
     }
     
     initializeApp() {
@@ -83,58 +96,105 @@ class GameClient {
 
     initializeEventListeners() {
         try {
-            // Remove existing event listeners first to prevent duplicates
-            this.removeEventListeners();
+            console.log('Initializing event listeners...');
             
-            // Store bound methods for proper cleanup
-            this.boundHandlers = {
-                joinGame: this.joinGame.bind(this),
-                readyUp: this.readyUp.bind(this),
-                submitAnswers: this.submitAnswers.bind(this),
-                nextRound: this.nextRound.bind(this)
-            };
-            
-            // Join game
-            const joinBtn = this.safeGetElement('join-btn');
-            if (joinBtn) {
-                joinBtn.addEventListener('click', this.boundHandlers.joinGame);
-            }
-            
-            // Ready up
-            const readyBtn = this.safeGetElement('ready-btn');
-            if (readyBtn) {
-                readyBtn.addEventListener('click', this.boundHandlers.readyUp);
-            }
-            
-            // Submit answers
-            const submitBtn = this.safeGetElement('submit-btn');
-            if (submitBtn) {
-                submitBtn.addEventListener('click', this.boundHandlers.submitAnswers);
-            }
-            
-            // Next round
-            const nextRoundBtn = this.safeGetElement('next-round-btn');
-            if (nextRoundBtn) {
-                nextRoundBtn.addEventListener('click', this.boundHandlers.nextRound);
-            }
-            
-            // Enter key for player name
-            const playerNameInput = this.safeGetElement('player-name');
-            if (playerNameInput) {
-                this.boundHandlers.playerNameEnter = (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
+            // Wait a bit to ensure DOM is ready
+            setTimeout(() => {
+                // Remove existing event listeners first to prevent duplicates
+                this.removeEventListeners();
+                
+                // Store bound methods for proper cleanup
+                this.boundHandlers = {
+                    joinGame: this.joinGame.bind(this),
+                    readyUp: this.setReady.bind(this),
+                    submitAnswers: this.submitAnswers.bind(this),
+                    nextRound: this.readyForNextRound.bind(this)
+                };
+                
+                // Create mobile-friendly touch handler
+                this.boundHandlers.touchHandler = (e) => {
+                    e.preventDefault(); // Prevent default touch behavior
+                    e.stopPropagation();
+                    
+                    // Find which handler to call based on target
+                    const target = e.target.closest('button');
+                    if (!target) return;
+                    
+                    if (target.id === 'join-btn') {
                         this.boundHandlers.joinGame();
+                    } else if (target.id === 'ready-btn') {
+                        this.boundHandlers.readyUp();
+                    } else if (target.id === 'submit-btn') {
+                        this.boundHandlers.submitAnswers();
+                    } else if (target.id === 'next-round-btn') {
+                        this.boundHandlers.nextRound();
                     }
                 };
-                playerNameInput.addEventListener('keypress', this.boundHandlers.playerNameEnter);
-            }
+                
+                // Join game
+                const joinBtn = document.getElementById('join-btn');
+                console.log('Join button found:', joinBtn);
+                if (joinBtn) {
+                    // Always add click event
+                    joinBtn.addEventListener('click', this.boundHandlers.joinGame);
+                    
+                    // Add touch events only on mobile devices
+                    if (this.isMobile) {
+                        joinBtn.addEventListener('touchstart', this.boundHandlers.touchHandler, { passive: false });
+                        console.log('Join button event listeners added (click and touch for mobile)');
+                    } else {
+                        console.log('Join button event listener added (click only for desktop)');
+                    }
+                } else {
+                    console.error('Join button not found!');
+                }
+                
+                // Ready up
+                const readyBtn = document.getElementById('ready-btn');
+                if (readyBtn) {
+                    readyBtn.addEventListener('click', this.boundHandlers.readyUp);
+                    if (this.isMobile) {
+                        readyBtn.addEventListener('touchstart', this.boundHandlers.touchHandler, { passive: false });
+                    }
+                }
+                
+                // Submit answers
+                const submitBtn = document.getElementById('submit-btn');
+                if (submitBtn) {
+                    submitBtn.addEventListener('click', this.boundHandlers.submitAnswers);
+                    if (this.isMobile) {
+                        submitBtn.addEventListener('touchstart', this.boundHandlers.touchHandler, { passive: false });
+                    }
+                }
+                
+                // Next round
+                const nextRoundBtn = document.getElementById('next-round-btn');
+                if (nextRoundBtn) {
+                    nextRoundBtn.addEventListener('click', this.boundHandlers.nextRound);
+                    if (this.isMobile) {
+                        nextRoundBtn.addEventListener('touchstart', this.boundHandlers.touchHandler, { passive: false });
+                    }
+                }
+                
+                // Enter key for player name
+                const playerNameInput = document.getElementById('player-name');
+                if (playerNameInput) {
+                    this.boundHandlers.playerNameEnter = (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            this.boundHandlers.joinGame();
+                        }
+                    };
+                    playerNameInput.addEventListener('keypress', this.boundHandlers.playerNameEnter);
+                }
+                
+            }, 200); // Increased timeout for better DOM readiness
             
         } catch (error) {
             console.error('Error initializing event listeners:', error);
         }
     }
-    
+
     removeEventListeners() {
         try {
             if (!this.boundHandlers) return;
@@ -142,21 +202,33 @@ class GameClient {
             const joinBtn = document.getElementById('join-btn');
             if (joinBtn && this.boundHandlers.joinGame) {
                 joinBtn.removeEventListener('click', this.boundHandlers.joinGame);
+                if (this.isMobile && this.boundHandlers.touchHandler) {
+                    joinBtn.removeEventListener('touchstart', this.boundHandlers.touchHandler);
+                }
             }
             
             const readyBtn = document.getElementById('ready-btn');
             if (readyBtn && this.boundHandlers.readyUp) {
                 readyBtn.removeEventListener('click', this.boundHandlers.readyUp);
+                if (this.isMobile && this.boundHandlers.touchHandler) {
+                    readyBtn.removeEventListener('touchstart', this.boundHandlers.touchHandler);
+                }
             }
             
             const submitBtn = document.getElementById('submit-btn');
             if (submitBtn && this.boundHandlers.submitAnswers) {
                 submitBtn.removeEventListener('click', this.boundHandlers.submitAnswers);
+                if (this.isMobile && this.boundHandlers.touchHandler) {
+                    submitBtn.removeEventListener('touchstart', this.boundHandlers.touchHandler);
+                }
             }
             
             const nextRoundBtn = document.getElementById('next-round-btn');
             if (nextRoundBtn && this.boundHandlers.nextRound) {
                 nextRoundBtn.removeEventListener('click', this.boundHandlers.nextRound);
+                if (this.isMobile && this.boundHandlers.touchHandler) {
+                    nextRoundBtn.removeEventListener('touchstart', this.boundHandlers.touchHandler);
+                }
             }
             
             const playerNameInput = document.getElementById('player-name');
@@ -266,6 +338,7 @@ class GameClient {
     }
 
     joinGame() {
+        console.log('joinGame function called!');
         const nameInput = document.getElementById('player-name');
         if (!nameInput) {
             this.showNotification('Errore: campo nome non trovato', 'error');
@@ -375,10 +448,12 @@ class GameClient {
 
     // Utility method to safely get cached DOM elements
     getElement(id) {
-        if (!this.cachedElements[id]) {
-            this.cachedElements[id] = document.getElementById(id);
+        // Always get fresh element reference for initial setup
+        const element = document.getElementById(id);
+        if (element) {
+            this.cachedElements[id] = element;
         }
-        return this.cachedElements[id];
+        return element;
     }
     
     // Safe DOM element getter with error handling
@@ -1312,14 +1387,14 @@ class AdminScoreEditor {
                             <button class="admin-btn" onclick="window.adminEditor?.setScore('${playerId}', 0)">
                                 Reset
                             </button>
-                    <button class="admin-btn danger" onclick="window.adminEditor.adjustScore('${playerId}', -5)">
-                        -5
-                    </button>
-                    <button class="admin-btn" onclick="window.adminEditor.adjustScore('${playerId}', 5)">
-                        +5
-                    </button>
-                </div>
-            `;
+                            <button class="admin-btn danger" onclick="window.adminEditor.adjustScore('${playerId}', -5)">
+                                -5
+                            </button>
+                            <button class="admin-btn" onclick="window.adminEditor.adjustScore('${playerId}', 5)">
+                                +5
+                            </button>
+                        </div>
+                    `;
             
             this.playersList.appendChild(playerDiv);
             

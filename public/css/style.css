@@ -1095,6 +1095,35 @@ input[type="text"] {
     touch-action: manipulation;
 }
 
+/* Mobile touch improvements */
+@media (hover: none) and (pointer: coarse) {
+    .neon-button {
+        /* Remove hover effects on touch devices */
+        transition: all 0.2s ease;
+        -webkit-tap-highlight-color: rgba(0, 255, 255, 0.3);
+    }
+    
+    .neon-button:active {
+        background: linear-gradient(45deg, var(--primary-cyan), var(--accent-green));
+        transform: scale(0.98);
+        box-shadow: 0 5px 15px rgba(0, 255, 255, 0.5);
+    }
+    
+    /* Immediate visual feedback for touch */
+    .neon-button:focus {
+        outline: 2px solid var(--primary-cyan);
+        outline-offset: 2px;
+    }
+    
+    /* Ensure buttons are large enough for touch */
+    #join-btn, #ready-btn, #submit-btn, #next-round-btn {
+        min-height: 50px;
+        min-width: 200px;
+        font-size: 1.1rem;
+        padding: 15px 25px;
+    }
+}
+
 /* High DPI screen improvements (desktop monitors) */
 @media (-webkit-min-device-pixel-ratio: 1.5), (min-resolution: 144dpi) {
     .player-badge {
