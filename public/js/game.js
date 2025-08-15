@@ -9,8 +9,8 @@ class GameClient {
         this.gameState = {};
         this.timer = null;
         this.countdownTimer = null; // Separate timer for countdown
+        this.autoSaveInterval = null; // Timer for auto-saving answers
         this.adminEditor = null;
-        this.isAutoSubmitting = false; // Track auto-submission state
         this.connectionAttempts = 0; // Track connection attempts
         this.isMobile = this.detectMobile(); // Detect mobile device
         
@@ -300,7 +300,29 @@ class GameClient {
         });
         
         this.socket.on('round-ended', (data) => {
-            console.log('Round ended:', data);
+            console.log('Round ended by server:', data);
+            
+            // Clear any remaining timer and auto-save
+            if (this.timer) {
+                clearInterval(this.timer);
+                this.timer = null;
+            }
+            
+            if (this.autoSaveInterval) {
+                clearInterval(this.autoSaveInterval);
+                this.autoSaveInterval = null;
+            }
+            
+            // If round ended but we haven't submitted yet, it means server auto-submitted for us
+            const submitBtn = document.getElementById('submit-btn');
+            if (submitBtn && !submitBtn.disabled && this.currentScreen === 'game') {
+                console.log('Server auto-submitted our answers');
+                submitBtn.textContent = 'AUTO-INVIATE DAL SERVER';
+                submitBtn.style.backgroundColor = '#ff6600';
+                submitBtn.disabled = true;
+                this.showNotification('Il server ha inviato automaticamente le tue risposte!', 'warning');
+            }
+            
             this.showResults(data);
         });
         
@@ -490,11 +512,10 @@ class GameClient {
             'Personaggi Televisivi': document.getElementById('personaggi-televisivi').value.trim()
         };
         
-        // Check if at least one answer is provided (only for manual submission)
+        // Check if at least one answer is provided
         const hasAnswers = Object.values(answers).some(answer => answer.length > 0);
         
-        // Don't require answers for auto-submission (time expired)
-        if (!hasAnswers && !this.isAutoSubmitting) {
+        if (!hasAnswers) {
             this.showNotification('Inserisci almeno una risposta!', 'error');
             return;
         }
@@ -514,18 +535,42 @@ class GameClient {
         this.socket.emit('submit-answers', answers);
         
         submitBtn.disabled = true;
-        if (!this.isAutoSubmitting) {
-            submitBtn.textContent = 'INVIATE!';
-            this.showNotification('Risposte inviate!', 'success');
-        } else {
-            submitBtn.textContent = 'INVIATE! (TEMPO SCADUTO)';
-            this.showNotification('Tempo scaduto! Risposte inviate automaticamente.', 'warning');
-            this.isAutoSubmitting = false; // Reset flag
-        }
+        submitBtn.textContent = 'INVIATE!';
+        this.showNotification('Risposte inviate!', 'success');
         
         // Disable all input fields
         const inputs = document.querySelectorAll('#game-screen input[type="text"]');
         inputs.forEach(input => input.disabled = true);
+        
+        // Clear auto-save interval since round is over
+        if (this.autoSaveInterval) {
+            clearInterval(this.autoSaveInterval);
+            this.autoSaveInterval = null;
+        }
+    }
+    
+    // Send current answers to server for auto-save (background operation)
+    sendCurrentAnswersToServer() {
+        const answers = {
+            'Nome': document.getElementById('nome').value.trim(),
+            'Cognome': document.getElementById('cognome').value.trim(),
+            'Città': document.getElementById('citta').value.trim(),
+            'Animale': document.getElementById('animale').value.trim(),
+            'Cosa': document.getElementById('cosa').value.trim(),
+            'Mestiere': document.getElementById('mestiere').value.trim(),
+            'Personaggi Televisivi': document.getElementById('personaggi-televisivi').value.trim()
+        };
+        
+        // Clean and validate answers
+        for (const [category, answer] of Object.entries(answers)) {
+            if (answer.length > 50) {
+                answers[category] = answer.substring(0, 50);
+            }
+            answers[category] = answer.replace(/[<>"'&]/g, '');
+        }
+        
+        // Send to server as backup (won't count as official submission)
+        this.socket.emit('update-answers', answers);
     }
 
     startRound(data) {
@@ -565,9 +610,6 @@ class GameClient {
 
     startGameRound(data) {
         this.switchScreen('game');
-        
-        // Reset auto-submit state for new round
-        this.isAutoSubmitting = false;
         
         // Update round info
         document.getElementById('current-round').textContent = data.round;
@@ -612,6 +654,18 @@ class GameClient {
         const submitBtn = document.getElementById('submit-btn');
         submitBtn.disabled = false;
         submitBtn.textContent = 'INVIA RISPOSTE';
+        submitBtn.style.backgroundColor = ''; // Reset color
+        
+        // Set up auto-save of answers every 5 seconds
+        if (this.autoSaveInterval) {
+            clearInterval(this.autoSaveInterval);
+        }
+        
+        this.autoSaveInterval = setInterval(() => {
+            if (this.currentScreen === 'game') {
+                this.sendCurrentAnswersToServer();
+            }
+        }, 5000); // Every 5 seconds
         
         // Start timer
         this.startTimer(data.duration);
@@ -655,22 +709,15 @@ class GameClient {
                 clearInterval(this.timer);
                 this.timer = null;
                 
-                // Only auto-submit if not already submitted and still in game screen
+                // Don't auto-submit on client side - let server handle it
+                console.log('Time expired on client side - waiting for server to end round');
+                
+                // Just show visual feedback that time is up
                 const submitBtn = document.getElementById('submit-btn');
-                if (!submitBtn.disabled && this.currentScreen === 'game') {
-                    console.log('Time expired, auto-submitting current answers');
-                    
-                    // Mark as auto-submitting
-                    this.isAutoSubmitting = true;
-                    
-                    // Visual feedback
+                if (submitBtn && this.currentScreen === 'game') {
                     submitBtn.textContent = 'TEMPO SCADUTO!';
                     submitBtn.style.backgroundColor = '#ff6600';
-                    
-                    // Submit immediately - don't wait, user's answers matter
-                    this.submitAnswers();
-                } else {
-                    console.log('Time expired but already submitted or not in game screen');
+                    submitBtn.disabled = true; // Disable to prevent manual submission after time
                 }
             }
         }, 1000);

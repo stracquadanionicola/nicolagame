@@ -292,12 +292,41 @@ io.on('connection', (socket) => {
             
             console.log(`Submission status: ${submittedPlayers.length}/${connectedPlayers.length} submitted, all submitted: ${allSubmitted}`);
             
-            if (allSubmitted) {
-                console.log('All players submitted, ending round');
+            // Only end round early if ALL remaining players have submitted AND there are players
+            if (allSubmitted && connectedPlayers.length > 0) {
+                console.log('All remaining connected players submitted, ending round early');
                 endRound();
+            } else {
+                console.log(`Waiting for more submissions or timer expiry. Current: ${submittedPlayers.length}/${connectedPlayers.length}`);
             }
         } catch (error) {
             console.error(`Error in submit-answers for ${socket.id}:`, error);
+        }
+    });
+    
+    // Player updates answers (for auto-save, doesn't count as submission)
+    socket.on('update-answers', (answers) => {
+        try {
+            // Only update if player exists and game is active and they haven't submitted yet
+            if (gameState.players[socket.id] && gameState.gameStarted && !gameState.players[socket.id].submitted) {
+                // Validate and sanitize answers
+                const sanitizedAnswers = {};
+                if (answers && typeof answers === 'object') {
+                    for (const [category, answer] of Object.entries(answers)) {
+                        if (typeof answer === 'string') {
+                            sanitizedAnswers[category] = answer.trim().substring(0, 50).replace(/[<>"'&]/g, '');
+                        } else {
+                            sanitizedAnswers[category] = '';
+                        }
+                    }
+                }
+                
+                // Update answers but don't mark as submitted
+                gameState.players[socket.id].answers = sanitizedAnswers;
+                console.log(`Updated answers for ${gameState.players[socket.id].name} (auto-save)`);
+            }
+        } catch (error) {
+            console.error(`Error in update-answers for ${socket.id}:`, error);
         }
     });
     
@@ -414,16 +443,25 @@ function startNewRound() {
     // Auto-end round after duration
     gameState.roundTimer = setTimeout(() => {
         if (gameState.currentRound > 0 && gameState.gameStarted) {
-            console.log('Round time expired, auto-submitting for all players and ending round');
+            console.log('Round time expired, force-ending round and auto-submitting for all remaining players');
+            
+            // Get all currently connected players
+            const connectedPlayers = Object.values(gameState.players);
+            console.log(`Force-submitting for ${connectedPlayers.length} connected players`);
             
             // Mark all remaining players as submitted with their current answers
-            Object.values(gameState.players).forEach(player => {
+            connectedPlayers.forEach(player => {
                 if (!player.submitted) {
                     player.submitted = true;
-                    console.log(`Auto-submitted for player ${player.name} with answers:`, player.answers || {});
+                    // Ensure they have an answers object, even if empty
+                    if (!player.answers) {
+                        player.answers = {};
+                    }
+                    console.log(`Auto-submitted for player ${player.name} with answers:`, player.answers);
                 }
             });
             
+            // Force end the round regardless of submission status
             endRound();
         }
     }, gameState.roundDuration);
